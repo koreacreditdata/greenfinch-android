@@ -76,15 +76,17 @@ import javax.net.ssl.SSLSocketFactory;
     }
 
     public void addDecideCheck(final DecideMessages check) {
-        mChecks.put(check.getToken(), check);
+        String key = String.format("%1$s|%2$s|%3$b", check.getToken(), check.getServiceName(), check.isProduction());
+        mChecks.put(key, check);
     }
 
-    public void runDecideCheck(final String token, final RemoteService poster) throws RemoteService.ServiceUnavailableException {
-        DecideMessages updates = mChecks.get(token);
+    public void runDecideCheck(final String token, final String serviceName, final boolean isProduction, final RemoteService poster) throws RemoteService.ServiceUnavailableException {
+        String key = String.format("%1$s|%2$s|%3$b", token, serviceName, isProduction);
+        DecideMessages updates = mChecks.get(key);
         if (updates != null) {
             final String distinctId = updates.getDistinctId();
             try {
-                final Result result = runDecideCheck(updates.getToken(), distinctId, poster);
+                final Result result = runDecideCheck(updates.getToken(), updates.getServiceName(), updates.isProduction(), distinctId, poster);
                 if (result != null) {
                     updates.reportResults(result.notifications, result.eventTriggeredNotifications, result.eventBindings, result.variants, result.automaticEvents, result.integrations);
                 }
@@ -116,9 +118,9 @@ import javax.net.ssl.SSLSocketFactory;
         }
     }
 
-    private Result runDecideCheck(final String token, final String distinctId, final RemoteService poster)
+    private Result runDecideCheck(final String token, final String serviceName, final boolean isProduction, final String distinctId, final RemoteService poster)
         throws RemoteService.ServiceUnavailableException, UnintelligibleMessageException {
-        final String responseString = getDecideResponseFromServer(token, distinctId, poster);
+        final String responseString = getDecideResponseFromServer(token, serviceName, isProduction, distinctId, poster);
 
         MPLog.v(LOGTAG, "Mixpanel decide server response was:\n" + responseString);
 
@@ -238,9 +240,9 @@ import javax.net.ssl.SSLSocketFactory;
         return ret;
     }
 
-    private String getDecideResponseFromServer(String unescapedToken, String unescapedDistinctId, RemoteService poster)
+    private String getDecideResponseFromServer(String unescapedToken, String serviceName, boolean isProduction, String unescapedDistinctId, RemoteService poster)
             throws RemoteService.ServiceUnavailableException {
-        final String escapedToken;
+        /*final String escapedToken;
         final String escapedId;
         try {
             escapedToken = URLEncoder.encode(unescapedToken, "utf-8");
@@ -288,7 +290,11 @@ import javax.net.ssl.SSLSocketFactory;
             return new String(response, "UTF-8");
         } catch (final UnsupportedEncodingException e) {
             throw new RuntimeException("UTF not supported on this platform?", e);
-        }
+        }*/
+
+        MPLog.w(LOGTAG, "DecideChecker is not supported for Greenfinch");
+
+        return null;
     }
 
     private Bitmap getNotificationImage(InAppNotification notification, Context context)

@@ -51,6 +51,8 @@ import com.mixpanel.android.util.MPLog;
     public static final String KEY_CREATED_AT = "created_at";
     public static final String KEY_AUTOMATIC_DATA = "automatic_data";
     public static final String KEY_TOKEN = "token";
+    public static final String KEY_SERVICE_NAME = "service_name";
+    public static final String KEY_IS_PRODUCTION = "is_production";
 
     public static final int DB_UPDATE_ERROR = -1;
     public static final int DB_OUT_OF_MEMORY_ERROR = -2;
@@ -60,32 +62,40 @@ import com.mixpanel.android.util.MPLog;
     private static final int MIN_DB_VERSION = 4;
 
     // If you increment DATABASE_VERSION, don't forget to define migration
-    private static final int DATABASE_VERSION = 7; // current database version
-    private static final int MAX_DB_VERSION = 7; // Max database version onUpdate can migrate to.
+    private static final int DATABASE_VERSION = 8; // current database version
+    private static final int MAX_DB_VERSION = 8; // Max database version onUpdate can migrate to.
 
     private static final String CREATE_EVENTS_TABLE =
        "CREATE TABLE " + Table.EVENTS.getName() + " (_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
         KEY_DATA + " STRING NOT NULL, " +
         KEY_CREATED_AT + " INTEGER NOT NULL, " +
         KEY_AUTOMATIC_DATA + " INTEGER DEFAULT 0, " +
+        KEY_SERVICE_NAME + " STRING NOT NULL DEFAULT '', " +
+        KEY_IS_PRODUCTION + " BOOLEAN NOT NULL DEFAULT FALSE, " +
         KEY_TOKEN + " STRING NOT NULL DEFAULT '')";
     private static final String CREATE_PEOPLE_TABLE =
        "CREATE TABLE " + Table.PEOPLE.getName() + " (_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
         KEY_DATA + " STRING NOT NULL, " +
         KEY_CREATED_AT + " INTEGER NOT NULL, " +
         KEY_AUTOMATIC_DATA + " INTEGER DEFAULT 0, " +
+        KEY_SERVICE_NAME + " STRING NOT NULL DEFAULT '', " +
+        KEY_IS_PRODUCTION + " BOOLEAN NOT NULL DEFAULT FALSE, " +
         KEY_TOKEN + " STRING NOT NULL DEFAULT '')";
     private static final String CREATE_GROUPS_TABLE =
             "CREATE TABLE " + Table.GROUPS.getName() + " (_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                     KEY_DATA + " STRING NOT NULL, " +
                     KEY_CREATED_AT + " INTEGER NOT NULL, " +
                     KEY_AUTOMATIC_DATA + " INTEGER DEFAULT 0, " +
+                    KEY_SERVICE_NAME + " STRING NOT NULL DEFAULT '', " +
+                    KEY_IS_PRODUCTION + " BOOLEAN NOT NULL DEFAULT FALSE, " +
                     KEY_TOKEN + " STRING NOT NULL DEFAULT '')";
     private static final String CREATE_ANONYMOUS_PEOPLE_TABLE =
             "CREATE TABLE " + Table.ANONYMOUS_PEOPLE.getName() + " (_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                     KEY_DATA + " STRING NOT NULL, " +
                     KEY_CREATED_AT + " INTEGER NOT NULL, " +
                     KEY_AUTOMATIC_DATA + " INTEGER DEFAULT 0, " +
+                    KEY_SERVICE_NAME + " STRING NOT NULL DEFAULT '', " +
+                    KEY_IS_PRODUCTION + " BOOLEAN NOT NULL DEFAULT FALSE, " +
                     KEY_TOKEN + " STRING NOT NULL DEFAULT '')";
     private static final String EVENTS_TIME_INDEX =
         "CREATE INDEX IF NOT EXISTS time_idx ON " + Table.EVENTS.getName() +
@@ -141,15 +151,22 @@ import com.mixpanel.android.util.MPLog;
                     migrateTableFrom4To5(db);
                     migrateTableFrom5To6(db);
                     migrateTableFrom6To7(db);
+                    migrateTableFrom7To8(db);
                 }
 
                 if (oldVersion == 5) {
                     migrateTableFrom5To6(db);
                     migrateTableFrom6To7(db);
+                    migrateTableFrom7To8(db);
                 }
 
                 if (oldVersion == 6) {
                     migrateTableFrom6To7(db);
+                    migrateTableFrom7To8(db);
+                }
+
+                if (oldVersion == 7) {
+                    migrateTableFrom7To8(db);
                 }
             } else {
                 db.execSQL("DROP TABLE IF EXISTS " + Table.EVENTS.getName());
@@ -266,6 +283,18 @@ import com.mixpanel.android.util.MPLog;
             }
         }
 
+        private void migrateTableFrom7To8(SQLiteDatabase db) {
+            db.execSQL("ALTER TABLE " + Table.EVENTS.getName() + " ADD COLUMN " + KEY_SERVICE_NAME + " STRING NOT NULL DEFAULT ''");
+            db.execSQL("ALTER TABLE " + Table.PEOPLE.getName() + " ADD COLUMN " + KEY_SERVICE_NAME + " STRING NOT NULL DEFAULT ''");
+            db.execSQL("ALTER TABLE " + Table.GROUPS.getName() + " ADD COLUMN " + KEY_SERVICE_NAME + " STRING NOT NULL DEFAULT ''");
+            db.execSQL("ALTER TABLE " + Table.ANONYMOUS_PEOPLE.getName() + " ADD COLUMN " + KEY_SERVICE_NAME + " STRING NOT NULL DEFAULT ''");
+
+            db.execSQL("ALTER TABLE " + Table.EVENTS.getName() + " ADD COLUMN " + KEY_IS_PRODUCTION + " BOOLEAN NOT NULL DEFAULT FALSE");
+            db.execSQL("ALTER TABLE " + Table.PEOPLE.getName() + " ADD COLUMN " + KEY_IS_PRODUCTION + " BOOLEAN NOT NULL DEFAULT FALSE");
+            db.execSQL("ALTER TABLE " + Table.GROUPS.getName() + " ADD COLUMN " + KEY_IS_PRODUCTION + " BOOLEAN NOT NULL DEFAULT FALSE");
+            db.execSQL("ALTER TABLE " + Table.ANONYMOUS_PEOPLE.getName() + " ADD COLUMN " + KEY_IS_PRODUCTION + " BOOLEAN NOT NULL DEFAULT FALSE");
+        }
+
         private final File mDatabaseFile;
         private final MPConfig mConfig;
         private final Context mContext;
@@ -303,7 +332,7 @@ import com.mixpanel.android.util.MPLog;
      * @return the number of rows in the table, or DB_OUT_OF_MEMORY_ERROR/DB_UPDATE_ERROR
      * on failure
      */
-    public int addJSON(JSONObject j, String token, Table table, boolean isAutomaticRecord) {
+    public int addJSON(JSONObject j, String token, String serviceName, boolean isProduction, Table table, boolean isAutomaticRecord) {
         // we are aware of the race condition here, but what can we do..?
         if (!this.belowMemThreshold()) {
             MPLog.e(LOGTAG, "There is not enough space left on the device to store Mixpanel data, so data was discarded");
@@ -323,9 +352,13 @@ import com.mixpanel.android.util.MPLog;
             cv.put(KEY_CREATED_AT, System.currentTimeMillis());
             cv.put(KEY_AUTOMATIC_DATA, isAutomaticRecord);
             cv.put(KEY_TOKEN, token);
+            cv.put(KEY_SERVICE_NAME, serviceName);
+            cv.put(KEY_IS_PRODUCTION, isProduction);
             db.insert(tableName, null, cv);
 
-            c = db.rawQuery("SELECT COUNT(*) FROM " + tableName + " WHERE token='" + token + "'", null);
+            c = db.rawQuery("SELECT COUNT(*) FROM " + tableName + " WHERE token='" + token + "' "
+                    + " AND service_name='" + serviceName + "'"
+                    + " AND is_production=" + isProduction, null);
             c.moveToFirst();
             count = c.getInt(0);
         } catch (final SQLiteException e) {
@@ -358,7 +391,7 @@ import com.mixpanel.android.util.MPLog;
      * @return the number of rows copied (anonymous updates), or DB_OUT_OF_MEMORY_ERROR/DB_UPDATE_ERROR
      * on failure
      */
-    /* package */ int pushAnonymousUpdatesToPeopleDb(String token, String distinctId) {
+    /* package */ int pushAnonymousUpdatesToPeopleDb(String token, String serviceName, boolean isProduction, String distinctId) {
         if (!this.belowMemThreshold()) {
             MPLog.e(LOGTAG, "There is not enough space left on the device to store Mixpanel data, so data was discarded");
             return DB_OUT_OF_MEMORY_ERROR;
@@ -368,7 +401,11 @@ import com.mixpanel.android.util.MPLog;
 
         try {
             final SQLiteDatabase db = mDb.getWritableDatabase();
-            StringBuffer allAnonymousQuery = new StringBuffer("SELECT * FROM " + Table.ANONYMOUS_PEOPLE.getName() + " WHERE " + KEY_TOKEN + " = '" + token + "'");
+            StringBuffer allAnonymousQuery = new StringBuffer("SELECT * FROM " + Table.ANONYMOUS_PEOPLE.getName() + " WHERE "
+                    + KEY_TOKEN + " = '" + token + "' AND "
+                    + KEY_SERVICE_NAME + " = '" + serviceName + "' AND "
+                    + KEY_IS_PRODUCTION + " = " + isProduction
+            );
 
             selectCursor = db.rawQuery(allAnonymousQuery.toString(), null);
             db.beginTransaction();
@@ -379,6 +416,8 @@ import com.mixpanel.android.util.MPLog;
                         values.put(KEY_CREATED_AT, selectCursor.getLong(selectCursor.getColumnIndex(KEY_CREATED_AT)));
                         values.put(KEY_AUTOMATIC_DATA, selectCursor.getInt(selectCursor.getColumnIndex(KEY_AUTOMATIC_DATA)));
                         values.put(KEY_TOKEN, selectCursor.getString(selectCursor.getColumnIndex(KEY_TOKEN)));
+                        values.put(KEY_SERVICE_NAME, selectCursor.getString(selectCursor.getColumnIndex(KEY_SERVICE_NAME)));
+                        values.put(KEY_IS_PRODUCTION, selectCursor.getString(selectCursor.getColumnIndex(KEY_IS_PRODUCTION)));
 
                         JSONObject updatedData = new JSONObject(selectCursor.getString(selectCursor.getColumnIndex(KEY_DATA)));
                         updatedData.put("$distinct_id", distinctId);
@@ -424,7 +463,7 @@ import com.mixpanel.android.util.MPLog;
      * @return the number of rows updated , or DB_OUT_OF_MEMORY_ERROR/DB_UPDATE_ERROR
      * on failure
      */
-    /* package */ int rewriteEventDataWithProperties(Map<String, String> properties, String token) {
+    /* package */ int rewriteEventDataWithProperties(Map<String, String> properties, String token, String serviceName, boolean isProduction) {
         if (!this.belowMemThreshold()) {
             MPLog.e(LOGTAG, "There is not enough space left on the device to store Mixpanel data, so data was discarded");
             return DB_OUT_OF_MEMORY_ERROR;
@@ -434,7 +473,11 @@ import com.mixpanel.android.util.MPLog;
 
         try {
             final SQLiteDatabase db = mDb.getWritableDatabase();
-            StringBuffer allAnonymousQuery = new StringBuffer("SELECT * FROM " + Table.EVENTS.getName() + " WHERE " + KEY_TOKEN + " = '" + token + "'");
+            StringBuffer allAnonymousQuery = new StringBuffer("SELECT * FROM " + Table.EVENTS.getName() + " WHERE "
+                    + KEY_TOKEN + " = '" + token + "' AND "
+                    + KEY_SERVICE_NAME + " = '" + serviceName + "' AND "
+                    + KEY_IS_PRODUCTION + " = " + isProduction
+            );
 
             selectCursor = db.rawQuery(allAnonymousQuery.toString(), null);
             db.beginTransaction();
@@ -491,12 +534,15 @@ import com.mixpanel.android.util.MPLog;
      * @param table the table to remove events from, one of "events", "people", "groups" or "anonymous_people"
      * @param includeAutomaticEvents whether or not automatic events should be included in the cleanup
      */
-    public void cleanupEvents(String last_id, Table table, String token, boolean includeAutomaticEvents) {
+    public void cleanupEvents(String last_id, Table table, String token, String serviceName, boolean isProduction, boolean includeAutomaticEvents) {
         final String tableName = table.getName();
 
         try {
             final SQLiteDatabase db = mDb.getWritableDatabase();
-            StringBuffer deleteQuery = new StringBuffer("_id <= " + last_id + " AND " + KEY_TOKEN + " = '" + token + "'");
+            StringBuffer deleteQuery = new StringBuffer("_id <= " + last_id + " AND "
+                    + KEY_TOKEN + " = '" + token + "' AND "
+                    + KEY_SERVICE_NAME + " = '" + serviceName + "' AND "
+                    + KEY_IS_PRODUCTION + " = " + isProduction);
 
             if (!includeAutomaticEvents) {
                 deleteQuery.append(" AND " + KEY_AUTOMATIC_DATA + "=0");
@@ -547,12 +593,14 @@ import com.mixpanel.android.util.MPLog;
      * @param table the table to remove events from, one of "events", "people", "groups" or "anonymous_people"
      * @param token token of the project to remove events from
      */
-    public void cleanupAllEvents(Table table, String token) {
+    public void cleanupAllEvents(Table table, String token, String serviceName, boolean isProduction) {
         final String tableName = table.getName();
 
         try {
             final SQLiteDatabase db = mDb.getWritableDatabase();
-            db.delete(tableName, KEY_TOKEN + " = '" + token + "'", null);
+            db.delete(tableName, KEY_TOKEN + " = '" + token + "' AND "
+                    + KEY_SERVICE_NAME + " = '" + serviceName + "' AND "
+                    + KEY_IS_PRODUCTION + " = " + isProduction, null);
         } catch (final SQLiteException e) {
             MPLog.e(LOGTAG, "Could not clean timed-out Mixpanel records from " + tableName + ". Re-initializing database.", e);
 
@@ -570,18 +618,21 @@ import com.mixpanel.android.util.MPLog;
      * Removes automatic events.
      * @param token token of the project you want to remove automatic events from
      */
-    public synchronized void cleanupAutomaticEvents(String token) {
-        cleanupAutomaticEvents(Table.EVENTS, token);
-        cleanupAutomaticEvents(Table.PEOPLE, token);
-        cleanupAutomaticEvents(Table.GROUPS, token);
+    public synchronized void cleanupAutomaticEvents(String token, String serviceName, boolean isProduction) {
+        cleanupAutomaticEvents(Table.EVENTS, token, serviceName, isProduction);
+        cleanupAutomaticEvents(Table.PEOPLE, token, serviceName, isProduction);
+        cleanupAutomaticEvents(Table.GROUPS, token, serviceName, isProduction);
     }
 
-    private void cleanupAutomaticEvents(Table table, String token) {
+    private void cleanupAutomaticEvents(Table table, String token, String serviceName, boolean isProduction) {
         final String tableName = table.getName();
 
         try {
             final SQLiteDatabase db = mDb.getWritableDatabase();
-            db.delete(tableName, KEY_AUTOMATIC_DATA + " = 1 AND " + KEY_TOKEN + " = '" + token + "'", null);
+            db.delete(tableName, KEY_AUTOMATIC_DATA + " = 1 AND "
+                    + KEY_TOKEN + " = '" + token + "' AND "
+                    + KEY_SERVICE_NAME + " = '" + serviceName + "' AND "
+                    + KEY_IS_PRODUCTION + " = " + isProduction, null);
         } catch (final SQLiteException e) {
             MPLog.e(LOGTAG, "Could not clean automatic Mixpanel records from " + tableName + ". Re-initializing database.", e);
 

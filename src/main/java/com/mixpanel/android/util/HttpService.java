@@ -34,12 +34,9 @@ public class HttpService implements RemoteService {
         Thread t = new Thread(new Runnable() {
             public void run() {
                 try {
-                    InetAddress apiMixpanelInet = InetAddress.getByName("api.mixpanel.com");
-                    InetAddress decideMixpanelInet = InetAddress.getByName("decide.mixpanel.com");
-                    sIsMixpanelBlocked = apiMixpanelInet.isLoopbackAddress() ||
-                            apiMixpanelInet.isAnyLocalAddress() ||
-                            decideMixpanelInet.isLoopbackAddress() ||
-                            decideMixpanelInet.isAnyLocalAddress();
+                    InetAddress apiGreenfinchInet = InetAddress.getByName("event.kcd.partners");
+                    sIsMixpanelBlocked = apiGreenfinchInet.isLoopbackAddress() ||
+                            apiGreenfinchInet.isAnyLocalAddress();
                     if (sIsMixpanelBlocked) {
                         MPLog.v(LOGTAG, "AdBlocker is enabled. Won't be able to use Mixpanel services.");
                     }

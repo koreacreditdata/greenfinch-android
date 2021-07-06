@@ -373,28 +373,32 @@ public class MixpanelAPI {
         }
 
         String projectToken = mpPayload.optString("token");
-        if (projectToken == null) {
+        String projectServiceName = mpPayload.optString("service_name");
+        boolean projectIsProduction = mpPayload.optBoolean("is_production");
+        if (projectToken == null || projectServiceName == null) {
             return null;
         }
 
-        return MixpanelAPI.getInstance(context, projectToken);
+        return MixpanelAPI.getInstance(context, projectToken, projectServiceName, projectIsProduction);
     }
 
     /**
      * You shouldn't instantiate MixpanelAPI objects directly.
      * Use MixpanelAPI.getInstance to get an instance.
      */
-    MixpanelAPI(Context context, Future<SharedPreferences> referrerPreferences, String token, boolean optOutTrackingDefault, JSONObject superProperties) {
-        this(context, referrerPreferences, token, MPConfig.getInstance(context), optOutTrackingDefault, superProperties);
+    MixpanelAPI(Context context, Future<SharedPreferences> referrerPreferences, String token, String serviceName, boolean isProduction, boolean optOutTrackingDefault, JSONObject superProperties) {
+        this(context, referrerPreferences, token, serviceName, isProduction, MPConfig.getInstance(context), optOutTrackingDefault, superProperties);
     }
 
     /**
      * You shouldn't instantiate MixpanelAPI objects directly.
      * Use MixpanelAPI.getInstance to get an instance.
      */
-    MixpanelAPI(Context context, Future<SharedPreferences> referrerPreferences, String token, MPConfig config, boolean optOutTrackingDefault, JSONObject superProperties) {
+    MixpanelAPI(Context context, Future<SharedPreferences> referrerPreferences, String token, String serviceName, boolean isProduction, MPConfig config, boolean optOutTrackingDefault, JSONObject superProperties) {
         mContext = context;
         mToken = token;
+        mServiceName = serviceName;
+        mIsProduction = isProduction;
         mPeople = new PeopleImpl();
         mGroups = new HashMap<String, GroupImpl>();
         mConfig = config;
@@ -431,7 +435,7 @@ public class MixpanelAPI {
             registerSuperProperties(superProperties);
         }
         mUpdatesListener = constructUpdatesListener();
-        mDecideMessages = constructDecideUpdates(token, mUpdatesListener, mUpdatesFromMixpanel);
+        mDecideMessages = constructDecideUpdates(token, serviceName, isProduction, mUpdatesListener, mUpdatesFromMixpanel);
         mConnectIntegrations = new ConnectIntegrations(this, mContext);
 
         // TODO reading persistent identify immediately forces the lazy load of the preferences, and defeats the
@@ -450,7 +454,7 @@ public class MixpanelAPI {
             InstallReferrerPlay referrerPlay = new InstallReferrerPlay(getContext(), new InstallReferrerPlay.ReferrerCallback() {
                 @Override
                 public void onReferrerReadSuccess() {
-                    mMessages.updateEventProperties(new AnalyticsMessages.UpdateEventsPropertiesDescription(mToken, mPersistentIdentity.getReferrerProperties()));
+                    mMessages.updateEventProperties(new AnalyticsMessages.UpdateEventsPropertiesDescription(mToken, mServiceName, mIsProduction, mPersistentIdentity.getReferrerProperties()));
                 }
             });
             referrerPlay.connect();
@@ -470,7 +474,7 @@ public class MixpanelAPI {
         }
 
         if (!mPersistentIdentity.isFirstIntegration(mToken)) {
-            try {
+            /*try {
                 final JSONObject messageProps = new JSONObject();
                 messageProps.put("mp_lib", "Android");
                 messageProps.put("lib", "Android");
@@ -487,7 +491,7 @@ public class MixpanelAPI {
 
                 mPersistentIdentity.setIsIntegrated(mToken);
             } catch (JSONException e) {
-            }
+            }*/
         }
 
         if (mPersistentIdentity.isNewVersion(deviceInfo.get("$android_app_version_code"))) {
@@ -532,8 +536,8 @@ public class MixpanelAPI {
      *     in the settings dialog.
      * @return an instance of MixpanelAPI associated with your project
      */
-    public static MixpanelAPI getInstance(Context context, String token) {
-        return getInstance(context, token, false, null);
+    public static MixpanelAPI getInstance(Context context, String token, String serviceName, boolean isProduction) {
+        return getInstance(context, token, serviceName, isProduction, false, null);
     }
 
     /**
@@ -564,8 +568,8 @@ public class MixpanelAPI {
      *     {@link #optOutTracking()}.
      * @return an instance of MixpanelAPI associated with your project
      */
-    public static MixpanelAPI getInstance(Context context, String token, boolean optOutTrackingDefault) {
-        return getInstance(context, token, optOutTrackingDefault, null);
+    public static MixpanelAPI getInstance(Context context, String token, String serviceName, boolean isProduction, boolean optOutTrackingDefault) {
+        return getInstance(context, token, serviceName, isProduction, optOutTrackingDefault, null);
     }
 
     /**
@@ -595,8 +599,8 @@ public class MixpanelAPI {
      * @param superProperties A JSONObject containing super properties to register.
      * @return an instance of MixpanelAPI associated with your project
      */
-    public static MixpanelAPI getInstance(Context context, String token, JSONObject superProperties) {
-        return getInstance(context, token, false, superProperties);
+    public static MixpanelAPI getInstance(Context context, String token, String serviceName, boolean isProduction, JSONObject superProperties) {
+        return getInstance(context, token, serviceName, isProduction, false, superProperties);
     }
 
     /**
@@ -628,8 +632,9 @@ public class MixpanelAPI {
      * @param superProperties A JSONObject containing super properties to register.
      * @return an instance of MixpanelAPI associated with your project
      */
-    public static MixpanelAPI getInstance(Context context, String token, boolean optOutTrackingDefault, JSONObject superProperties) {
-        if (null == token || null == context) {
+    public static MixpanelAPI getInstance(Context context, String token, String serviceName, boolean isProduction,
+                                          boolean optOutTrackingDefault, JSONObject superProperties) {
+        if (null == token || null == context || null == serviceName) {
             return null;
         }
         synchronized (sInstanceMap) {
@@ -639,15 +644,17 @@ public class MixpanelAPI {
                 sReferrerPrefs = sPrefsLoader.loadPreferences(context, MPConfig.REFERRER_PREFS_NAME, null);
             }
 
-            Map <Context, MixpanelAPI> instances = sInstanceMap.get(token);
+            String key = String.format("%1$s|%2$s|%3$b", token, serviceName, isProduction);
+
+            Map <Context, MixpanelAPI> instances = sInstanceMap.get(key);
             if (null == instances) {
                 instances = new HashMap<Context, MixpanelAPI>();
-                sInstanceMap.put(token, instances);
+                sInstanceMap.put(key, instances);
             }
 
             MixpanelAPI instance = instances.get(appContext);
             if (null == instance && ConfigurationChecker.checkBasicConfiguration(appContext)) {
-                instance = new MixpanelAPI(appContext, sReferrerPrefs, token, optOutTrackingDefault, superProperties);
+                instance = new MixpanelAPI(appContext, sReferrerPrefs, token, serviceName, isProduction, optOutTrackingDefault, superProperties);
                 registerAppLinksListeners(context, instance);
                 instances.put(appContext, instance);
                 if (ConfigurationChecker.checkPushNotificationConfiguration(appContext)) {
@@ -923,7 +930,7 @@ public class MixpanelAPI {
      */
     public void flush() {
         if (hasOptedOutTracking()) return;
-        mMessages.postToServer(new AnalyticsMessages.FlushDescription(mToken));
+        mMessages.postToServer(new AnalyticsMessages.FlushDescription(mToken, mServiceName, mIsProduction));
     }
 
     /**
@@ -1279,7 +1286,7 @@ public class MixpanelAPI {
         // and waiting People Analytics properties. Will have no effect
         // on messages already queued to send with AnalyticsMessages.
         mPersistentIdentity.clearPreferences();
-        getAnalyticsMessages().clearAnonymousUpdatesMessage(new AnalyticsMessages.MixpanelDescription(mToken));
+        getAnalyticsMessages().clearAnonymousUpdatesMessage(new AnalyticsMessages.MixpanelDescription(mToken, mServiceName, mIsProduction));
         identify(getDistinctId(), false);
         mConnectIntegrations.reset();
         mUpdatesFromMixpanel.storeVariants(new JSONArray());
@@ -1307,7 +1314,7 @@ public class MixpanelAPI {
      * This method will also remove any user-related information from the device.
      */
     public void optOutTracking() {
-        getAnalyticsMessages().emptyTrackingQueues(new AnalyticsMessages.MixpanelDescription(mToken));
+        getAnalyticsMessages().emptyTrackingQueues(new AnalyticsMessages.MixpanelDescription(mToken, mServiceName, mIsProduction));
         if (getPeople().isIdentified()) {
             getPeople().deleteUser();
             getPeople().clearCharges();
@@ -1374,7 +1381,7 @@ public class MixpanelAPI {
     }
     /**
      * Will return true if the user has opted out from tracking. See {@link #optOutTracking()} and
-     * {@link MixpanelAPI#getInstance(Context, String, boolean, JSONObject)} for more information.
+     * {@link MixpanelAPI#getInstance(Context, String, String, boolean, boolean, JSONObject)} for more information.
      *
      * @return true if user has opted out from tracking. Defaults to false.
      */
@@ -2067,8 +2074,8 @@ public class MixpanelAPI {
         return new PersistentIdentity(referrerPreferences, storedPreferences, timeEventsPrefs, mixpanelPrefs);
     }
 
-    /* package */ DecideMessages constructDecideUpdates(final String token, final DecideMessages.OnNewResultsListener listener, UpdatesFromMixpanel updatesFromMixpanel) {
-        return new DecideMessages(mContext, token, listener, updatesFromMixpanel, mPersistentIdentity.getSeenCampaignIds());
+    /* package */ DecideMessages constructDecideUpdates(final String token, final String serviceName, final boolean isProduction, final DecideMessages.OnNewResultsListener listener, UpdatesFromMixpanel updatesFromMixpanel) {
+        return new DecideMessages(mContext, token, serviceName, isProduction, listener, updatesFromMixpanel, mPersistentIdentity.getSeenCampaignIds());
     }
 
     /* package */ UpdatesListener constructUpdatesListener() {
@@ -2541,7 +2548,7 @@ public class MixpanelAPI {
                         final int highlightColor = ActivityImageUtils.getHighlightColorFromBackground(parent);
                         final UpdateDisplayState.DisplayState.InAppNotificationState proposal =
                                 new UpdateDisplayState.DisplayState.InAppNotificationState(toShow, highlightColor);
-                        final int intentId = UpdateDisplayState.proposeDisplay(proposal, getDistinctId(), mToken);
+                        final int intentId = UpdateDisplayState.proposeDisplay(proposal, getDistinctId(), mToken, mServiceName, mIsProduction);
                         if (intentId <= 0) {
                             MPLog.e(LOGTAG, "DisplayState Lock in inconsistent state! Please report this issue to Mixpanel");
                             return;
@@ -2861,7 +2868,7 @@ public class MixpanelAPI {
     ////////////////////////////////////////////////////
     protected void flushNoDecideCheck() {
         if (hasOptedOutTracking()) return;
-        mMessages.postToServer(new AnalyticsMessages.FlushDescription(mToken, false));
+        mMessages.postToServer(new AnalyticsMessages.FlushDescription(mToken, mServiceName, mIsProduction, false));
     }
 
     protected void track(String eventName, JSONObject properties, boolean isAutomaticEvent) {
@@ -2921,7 +2928,7 @@ public class MixpanelAPI {
 
             final AnalyticsMessages.EventDescription eventDescription =
                     new AnalyticsMessages.EventDescription(eventName, messageProps,
-                            mToken, isAutomaticEvent, mSessionMetadata.getMetadataForEvent());
+                            mToken, mServiceName, mIsProduction, isAutomaticEvent, mSessionMetadata.getMetadataForEvent());
             mMessages.eventsMessage(eventDescription);
 
             if (mMixpanelActivityLifecycleCallbacks.getCurrentActivity() != null) {
@@ -2938,20 +2945,20 @@ public class MixpanelAPI {
 
     private void recordPeopleMessage(JSONObject message) {
         if (hasOptedOutTracking()) return;
-        mMessages.peopleMessage(new AnalyticsMessages.PeopleDescription(message, mToken));
+        mMessages.peopleMessage(new AnalyticsMessages.PeopleDescription(message, mToken, mServiceName, mIsProduction));
     }
 
     private void recordGroupMessage(JSONObject message) {
         if (hasOptedOutTracking()) return;
         if (message.has("$group_key") && message.has("$group_id")) {
-            mMessages.groupMessage(new AnalyticsMessages.GroupDescription(message, mToken));
+            mMessages.groupMessage(new AnalyticsMessages.GroupDescription(message, mToken, mServiceName, mIsProduction));
         } else {
             MPLog.e(LOGTAG, "Attempt to update group without key and value--this should not happen.");
         }
     }
 
     private void pushWaitingPeopleRecord(String distinctId) {
-        mMessages.pushAnonymousPeopleMessage(new AnalyticsMessages.PushAnonymousPeopleDescription(distinctId, mToken));
+        mMessages.pushAnonymousPeopleMessage(new AnalyticsMessages.PushAnonymousPeopleDescription(distinctId, mToken, mServiceName, mIsProduction));
     }
 
     private static void registerAppLinksListeners(Context context, final MixpanelAPI mixpanel) {
@@ -3021,6 +3028,8 @@ public class MixpanelAPI {
     private final AnalyticsMessages mMessages;
     private final MPConfig mConfig;
     private final String mToken;
+    private final String mServiceName;
+    private final boolean mIsProduction;
     private final PeopleImpl mPeople;
     private final Map<String, GroupImpl> mGroups;
     private final UpdatesFromMixpanel mUpdatesFromMixpanel;
