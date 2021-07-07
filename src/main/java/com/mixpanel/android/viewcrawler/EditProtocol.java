@@ -204,7 +204,7 @@ import java.util.List;
                 final String targetClassName = classDesc.getString("name");
                 final Class<?> targetClass = Class.forName(targetClassName);
 
-                final JSONArray propertyDescs = classDesc.getJSONArray("properties");
+                final JSONArray propertyDescs = classDesc.getJSONArray("prop");
                 for (int i = 0; i < propertyDescs.length(); i++) {
                     final JSONObject propertyDesc = propertyDescs.getJSONObject(i);
                     final PropertyDescription desc = readPropertyDescription(targetClass, propertyDesc);

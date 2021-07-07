@@ -15,6 +15,8 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.URL;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import javax.net.ssl.HttpsURLConnection;
@@ -88,7 +90,7 @@ public class HttpService implements RemoteService {
     }
 
     @Override
-    public byte[] performRequest(String endpointUrl, Map<String, Object> params, SSLSocketFactory socketFactory) throws ServiceUnavailableException, IOException {
+    public byte[] performRequest(String endpointUrl, String token, String jsonPayload, SSLSocketFactory socketFactory) throws ServiceUnavailableException, IOException {
         MPLog.v(LOGTAG, "Attempting request to " + endpointUrl);
 
         byte[] response = null;
@@ -105,6 +107,8 @@ public class HttpService implements RemoteService {
             BufferedOutputStream bout = null;
             HttpURLConnection connection = null;
 
+            MPLog.d(LOGTAG, "Endpoint url: " + endpointUrl);
+
             try {
                 final URL url = new URL(endpointUrl);
                 connection = (HttpURLConnection) url.openConnection();
@@ -112,21 +116,22 @@ public class HttpService implements RemoteService {
                     ((HttpsURLConnection) connection).setSSLSocketFactory(socketFactory);
                 }
 
+                if (token != null) {
+                    connection.setRequestProperty("jwt", token);
+                }
+                connection.setRequestProperty("label", "app");
                 connection.setConnectTimeout(2000);
                 connection.setReadTimeout(30000);
-                if (null != params) {
-                    Uri.Builder builder = new Uri.Builder();
-                    for (Map.Entry<String, Object> param : params.entrySet()) {
-                        builder.appendQueryParameter(param.getKey(), param.getValue().toString());
-                    }
-                    String query = builder.build().getEncodedQuery();
+                if (null != jsonPayload) {
+                    byte[] bytes = jsonPayload.getBytes("UTF-8");
 
-                    connection.setFixedLengthStreamingMode(query.getBytes().length);
+                    connection.setFixedLengthStreamingMode(bytes.length);
                     connection.setDoOutput(true);
                     connection.setRequestMethod("POST");
+
                     out = connection.getOutputStream();
                     bout = new BufferedOutputStream(out);
-                    bout.write(query.getBytes("UTF-8"));
+                    bout.write(bytes);
                     bout.flush();
                     bout.close();
                     bout = null;

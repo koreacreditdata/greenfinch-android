@@ -204,13 +204,13 @@ public class UpdateDisplayState implements Parcelable {
     }
 
     // Returned id should either be -1, or POSITIVE (nonzero). Don't return zero, please.
-    /* package */ static int proposeDisplay(final DisplayState state, final String distinctId, final String token, final String serviceName, final boolean isProduction) {
+    /* package */ static int proposeDisplay(final DisplayState state, final String distinctId, final String token, final String serviceName) {
         int ret = -1;
 
         if (!sUpdateDisplayLock.isHeldByCurrentThread()) throw new AssertionError();
         if (! hasCurrentProposal()) {
             sUpdateDisplayLockMillis = System.currentTimeMillis();
-            sUpdateDisplayState = new UpdateDisplayState(state, distinctId, token, serviceName, isProduction);
+            sUpdateDisplayState = new UpdateDisplayState(state, distinctId, token, serviceName);
             sNextIntentId++;
             ret = sNextIntentId;
         } else {
@@ -283,7 +283,6 @@ public class UpdateDisplayState implements Parcelable {
         bundle.putString(DISTINCT_ID_BUNDLE_KEY, mDistinctId);
         bundle.putString(TOKEN_BUNDLE_KEY, mToken);
         bundle.putString(SERVICE_NAME_BUNDLE_KEY, mServiceName);
-        bundle.putBoolean(IS_PRODUCTION_BUNDLE_KEY, mIsProduction);
         bundle.putParcelable(DISPLAYSTATE_BUNDLE_KEY, mDisplayState);
         dest.writeBundle(bundle);
     }
@@ -304,16 +303,11 @@ public class UpdateDisplayState implements Parcelable {
         return mServiceName;
     }
 
-    public boolean isProduction() {
-        return mIsProduction;
-    }
-
     // Package access for testing only- DO NOT CALL in library code
-    /* package */ UpdateDisplayState(final DisplayState displayState, final String distinctId, final String token, final String serviceName, final boolean isProduction) {
+    /* package */ UpdateDisplayState(final DisplayState displayState, final String distinctId, final String token, final String serviceName) {
         mDistinctId = distinctId;
         mToken = token;
         mServiceName = serviceName;
-        mIsProduction = isProduction;
         mDisplayState = displayState;
     }
 
@@ -322,14 +316,12 @@ public class UpdateDisplayState implements Parcelable {
         mDistinctId = read.getString(DISTINCT_ID_BUNDLE_KEY);
         mToken = read.getString(TOKEN_BUNDLE_KEY);
         mServiceName = read.getString(SERVICE_NAME_BUNDLE_KEY);
-        mIsProduction = read.getBoolean(IS_PRODUCTION_BUNDLE_KEY);
         mDisplayState = read.getParcelable(DISPLAYSTATE_BUNDLE_KEY);
     }
 
     private final String mDistinctId;
     private final String mToken;
     private final String mServiceName;
-    private final boolean mIsProduction;
     private final DisplayState mDisplayState;
 
     private static final ReentrantLock sUpdateDisplayLock = new ReentrantLock();
@@ -344,7 +336,6 @@ public class UpdateDisplayState implements Parcelable {
     private static final String DISTINCT_ID_BUNDLE_KEY = "com.mixpanel.android.mpmetrics.UpdateDisplayState.DISTINCT_ID_BUNDLE_KEY";
     private static final String TOKEN_BUNDLE_KEY = "com.mixpanel.android.mpmetrics.UpdateDisplayState.TOKEN_BUNDLE_KEY";
     private static final String SERVICE_NAME_BUNDLE_KEY = "com.mixpanel.android.mpmetrics.UpdateDisplayState.SERVICE_NAME_BUNDLE_KEY";
-    private static final String IS_PRODUCTION_BUNDLE_KEY = "com.mixpanel.android.mpmetrics.UpdateDisplayState.IS_PRODUCTION_BUNDLE_KEY";
     private static final String DISPLAYSTATE_BUNDLE_KEY = "com.mixpanel.android.mpmetrics.UpdateDisplayState.DISPLAYSTATE_BUNDLE_KEY";
 
 }

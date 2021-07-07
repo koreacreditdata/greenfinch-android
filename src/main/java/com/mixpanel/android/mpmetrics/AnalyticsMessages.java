@@ -40,14 +40,12 @@ import javax.net.ssl.SSLSocketFactory;
 
     static class FlushQueueObject {
 
-        private String mToken;
-        private String mServiceName;
-        private boolean mIsProduction;
+        final private String mToken;
+        final private String mServiceName;
 
-        FlushQueueObject(String token, String serviceName, boolean isProduction) {
+        FlushQueueObject(final String token, final String serviceName) {
             this.mToken = token;
             this.mServiceName = serviceName;
-            this.mIsProduction = isProduction;
         }
 
         public String getToken() {
@@ -58,10 +56,6 @@ import javax.net.ssl.SSLSocketFactory;
             return mServiceName;
         }
 
-        public boolean isProduction() {
-            return mIsProduction;
-        }
-
         @Override
         public boolean equals(Object other) {
             if (!(other instanceof FlushQueueObject)) {
@@ -70,7 +64,7 @@ import javax.net.ssl.SSLSocketFactory;
 
             FlushQueueObject o = (FlushQueueObject) other;
 
-            return mToken.equals(o.getToken()) && mServiceName.equals(o.getServiceName()) && mIsProduction == o.isProduction();
+            return mToken.equals(o.getToken()) && mServiceName.equals(o.getServiceName());
         }
 
     }
@@ -156,7 +150,7 @@ import javax.net.ssl.SSLSocketFactory;
     public void postToServer(final FlushDescription flushDescription) {
         final Message m = Message.obtain();
         m.what = FLUSH_QUEUE;
-        m.obj = new FlushQueueObject(flushDescription.getToken(), flushDescription.getServiceName(), flushDescription.isProduction());
+        m.obj = new FlushQueueObject(flushDescription.getToken(), flushDescription.getServiceName());
         m.arg1 = flushDescription.shouldCheckDecide() ? 1 : 0;
 
         mWorker.runMessage(m);
@@ -218,19 +212,17 @@ import javax.net.ssl.SSLSocketFactory;
         public EventDescription(String eventName,
                                 JSONObject properties,
                                 String token,
-                                String serviceName,
-                                boolean isProduction) {
-            this(eventName, properties, token, serviceName, isProduction, false, new JSONObject());
+                                String serviceName) {
+            this(eventName, properties, token, serviceName, false, new JSONObject());
         }
 
         public EventDescription(String eventName,
                                 JSONObject properties,
                                 String token,
                                 String serviceName,
-                                boolean isProduction,
                                 boolean isAutomatic,
                                 JSONObject sessionMetada) {
-            super(token, serviceName, isProduction, properties);
+            super(token, serviceName, properties);
             mEventName = eventName;
             mIsAutomatic = isAutomatic;
             mSessionMetadata = sessionMetada;
@@ -258,8 +250,8 @@ import javax.net.ssl.SSLSocketFactory;
     }
 
     static class PeopleDescription extends MixpanelMessageDescription {
-        public PeopleDescription(JSONObject message, String token, String serviceName, boolean isProduction) {
-            super(token, serviceName, isProduction, message);
+        public PeopleDescription(JSONObject message, String token, String serviceName) {
+            super(token, serviceName, message);
         }
 
         @Override
@@ -273,8 +265,8 @@ import javax.net.ssl.SSLSocketFactory;
     }
 
     static class GroupDescription extends MixpanelMessageDescription {
-        public GroupDescription(JSONObject message, String token, String serviceName, boolean isProduction) {
-            super(token, serviceName, isProduction, message);
+        public GroupDescription(JSONObject message, String token, String serviceName) {
+            super(token, serviceName, message);
         }
 
         @Override
@@ -284,8 +276,8 @@ import javax.net.ssl.SSLSocketFactory;
     }
 
     static class PushAnonymousPeopleDescription extends MixpanelDescription {
-        public PushAnonymousPeopleDescription(String distinctId, String token, String serviceName, boolean isProduction) {
-            super(token, serviceName, isProduction);
+        public PushAnonymousPeopleDescription(String distinctId, String token, String serviceName) {
+            super(token, serviceName);
             this.mDistinctId = distinctId;
         }
 
@@ -302,12 +294,12 @@ import javax.net.ssl.SSLSocketFactory;
     }
 
     static class FlushDescription extends MixpanelDescription {
-        public FlushDescription(String token, String serviceName, boolean isProduction) {
-            this(token, serviceName, isProduction, true);
+        public FlushDescription(String token, String serviceName) {
+            this(token, serviceName, true);
         }
 
-        protected FlushDescription(String token, String serviceName, boolean isProduction, boolean checkDecide) {
-            super(token, serviceName, isProduction);
+        protected FlushDescription(String token, String serviceName, boolean checkDecide) {
+            super(token, serviceName);
             this.checkDecide = checkDecide;
         }
 
@@ -319,8 +311,8 @@ import javax.net.ssl.SSLSocketFactory;
     }
 
     static class MixpanelMessageDescription extends MixpanelDescription {
-        public MixpanelMessageDescription(String token, String serviceName, boolean isProduction, JSONObject message) {
-            super(token, serviceName, isProduction);
+        public MixpanelMessageDescription(String token, String serviceName, JSONObject message) {
+            super(token, serviceName);
             if (message != null && message.length() > 0) {
                 Iterator<String> it = message.keys();
                 while (it.hasNext()) {
@@ -348,8 +340,8 @@ import javax.net.ssl.SSLSocketFactory;
     static class UpdateEventsPropertiesDescription extends MixpanelDescription {
         private Map<String, String> mProps;
 
-        public UpdateEventsPropertiesDescription(String token, String serviceName, boolean isProduction, Map<String, String> props) {
-            super(token, serviceName, isProduction);
+        public UpdateEventsPropertiesDescription(String token, String serviceName, Map<String, String> props) {
+            super(token, serviceName);
             mProps = props;
         }
 
@@ -359,10 +351,9 @@ import javax.net.ssl.SSLSocketFactory;
     }
 
     static class MixpanelDescription {
-        public MixpanelDescription(String token, String serviceName, boolean isProduction) {
+        public MixpanelDescription(String token, String serviceName) {
             this.mToken = token;
             this.mServiceName = serviceName;
-            this.mIsProduction = isProduction;
         }
 
         public String getToken() {
@@ -373,13 +364,8 @@ import javax.net.ssl.SSLSocketFactory;
             return mServiceName;
         }
 
-        public boolean isProduction() {
-            return mIsProduction;
-        }
-
         private final String mToken;
         private final String mServiceName;
-        private final boolean mIsProduction;
     }
 
     // Sends a message if and only if we are running with Mixpanel Message log enabled.
@@ -451,7 +437,6 @@ import javax.net.ssl.SSLSocketFactory;
                     int returnCode = MPDbAdapter.DB_UNDEFINED_CODE;
                     String token = null;
                     String serviceName = null;
-                    boolean isProduction = false;
 
                     if (msg.what == ENQUEUE_PEOPLE) {
                         final PeopleDescription message = (PeopleDescription) msg.obj;
@@ -461,8 +446,7 @@ import javax.net.ssl.SSLSocketFactory;
                         logAboutMessageToMixpanel("    " + message.toString());
                         token = message.getToken();
                         serviceName = message.getServiceName();
-                        isProduction = message.isProduction();
-                        int numRowsTable = mDbAdapter.addJSON(message.getMessage(), token, serviceName, isProduction, peopleTable, false);
+                        int numRowsTable = mDbAdapter.addJSON(message.getMessage(), token, serviceName, peopleTable, false);
                         returnCode = message.isAnonymous() ? 0 : numRowsTable;
                     } else if (msg.what == ENQUEUE_GROUP) {
                         final GroupDescription message = (GroupDescription) msg.obj;
@@ -471,8 +455,7 @@ import javax.net.ssl.SSLSocketFactory;
                         logAboutMessageToMixpanel("    " + message.toString());
                         token = message.getToken();
                         serviceName = message.getServiceName();
-                        isProduction = message.isProduction();
-                        returnCode = mDbAdapter.addJSON(message.getMessage(), token, serviceName, isProduction, MPDbAdapter.Table.GROUPS, false);
+                        returnCode = mDbAdapter.addJSON(message.getMessage(), token, serviceName, MPDbAdapter.Table.GROUPS, false);
                     } else if (msg.what == ENQUEUE_EVENTS) {
                         final EventDescription eventDescription = (EventDescription) msg.obj;
                         try {
@@ -481,13 +464,12 @@ import javax.net.ssl.SSLSocketFactory;
                             logAboutMessageToMixpanel("    " + message.toString());
                             token = eventDescription.getToken();
                             serviceName = eventDescription.getServiceName();
-                            isProduction = eventDescription.isProduction();
 
                             DecideMessages decide = mDecideChecker.getDecideMessages(token);
                             if (decide != null && eventDescription.isAutomatic() && !decide.shouldTrackAutomaticEvent()) {
                                 return;
                             }
-                            returnCode = mDbAdapter.addJSON(message, token, serviceName, isProduction, MPDbAdapter.Table.EVENTS, eventDescription.isAutomatic());
+                            returnCode = mDbAdapter.addJSON(message, token, serviceName, MPDbAdapter.Table.EVENTS, eventDescription.isAutomatic());
                         } catch (final JSONException e) {
                             MPLog.e(LOGTAG, "Exception tracking event " + eventDescription.getEventName(), e);
                         }
@@ -496,24 +478,22 @@ import javax.net.ssl.SSLSocketFactory;
                         final String distinctId = pushAnonymousPeopleDescription.getDistinctId();
                         token = pushAnonymousPeopleDescription.getToken();
                         serviceName = pushAnonymousPeopleDescription.getServiceName();
-                        isProduction = pushAnonymousPeopleDescription.isProduction();
-                        returnCode = mDbAdapter.pushAnonymousUpdatesToPeopleDb(token, serviceName, isProduction, distinctId);
+                        returnCode = mDbAdapter.pushAnonymousUpdatesToPeopleDb(token, serviceName, distinctId);
                     } else if (msg.what == CLEAR_ANONYMOUS_UPDATES) {
                         final MixpanelDescription mixpanelDescription = (MixpanelDescription) msg.obj;
                         token = mixpanelDescription.getToken();
                         serviceName = mixpanelDescription.getServiceName();
-                        isProduction = mixpanelDescription.isProduction();
-                        mDbAdapter.cleanupAllEvents(MPDbAdapter.Table.ANONYMOUS_PEOPLE, token, serviceName, isProduction);
+                        mDbAdapter.cleanupAllEvents(MPDbAdapter.Table.ANONYMOUS_PEOPLE, token, serviceName);
                     } else if (msg.what == REWRITE_EVENT_PROPERTIES) {
                         final UpdateEventsPropertiesDescription description = (UpdateEventsPropertiesDescription) msg.obj;
-                        int updatedEvents = mDbAdapter.rewriteEventDataWithProperties(description.getProperties(), description.getToken(), description.getServiceName(), description.isProduction());
+                        int updatedEvents = mDbAdapter.rewriteEventDataWithProperties(description.getProperties(), description.getToken(), description.getServiceName());
                         MPLog.d(LOGTAG, updatedEvents + " stored events were updated with new properties.");
                     } else if (msg.what == FLUSH_QUEUE) {
                         logAboutMessageToMixpanel("Flushing queue due to scheduled or forced flush");
                         updateFlushFrequency();
                         FlushQueueObject fqo = (FlushQueueObject) msg.obj;
                         boolean shouldCheckDecide = msg.arg1 == 1 ? true : false;
-                        sendAllData(mDbAdapter, fqo.getToken(), fqo.getServiceName(), fqo.isProduction());
+                        sendAllData(mDbAdapter, fqo.getToken(), fqo.getServiceName());
                         /*
                         if (shouldCheckDecide && SystemClock.elapsedRealtime() >= mDecideRetryAfter) {
                             try {
@@ -540,11 +520,10 @@ import javax.net.ssl.SSLSocketFactory;
                         final MixpanelDescription message = (MixpanelDescription) msg.obj;
                         token = message.getToken();
                         serviceName = message.getServiceName();
-                        isProduction = message.isProduction();
-                        mDbAdapter.cleanupAllEvents(MPDbAdapter.Table.EVENTS, token, serviceName, isProduction);
-                        mDbAdapter.cleanupAllEvents(MPDbAdapter.Table.PEOPLE, token, serviceName, isProduction);
-                        mDbAdapter.cleanupAllEvents(MPDbAdapter.Table.GROUPS, token, serviceName, isProduction);
-                        mDbAdapter.cleanupAllEvents(MPDbAdapter.Table.ANONYMOUS_PEOPLE, token, serviceName, isProduction);
+                        mDbAdapter.cleanupAllEvents(MPDbAdapter.Table.EVENTS, token, serviceName);
+                        mDbAdapter.cleanupAllEvents(MPDbAdapter.Table.PEOPLE, token, serviceName);
+                        mDbAdapter.cleanupAllEvents(MPDbAdapter.Table.GROUPS, token, serviceName);
+                        mDbAdapter.cleanupAllEvents(MPDbAdapter.Table.ANONYMOUS_PEOPLE, token, serviceName);
                     } else if (msg.what == KILL_WORKER) {
                         MPLog.w(LOGTAG, "Worker received a hard kill. Dumping all events and force-killing. Thread id " + Thread.currentThread().getId());
                         synchronized(mHandlerLock) {
@@ -556,17 +535,17 @@ import javax.net.ssl.SSLSocketFactory;
                         MPLog.e(LOGTAG, "Unexpected message received by Mixpanel worker: " + msg);
                     }
 
-                    FlushQueueObject fqo = new FlushQueueObject(token, serviceName, isProduction);
+                    FlushQueueObject fqo = new FlushQueueObject(token, serviceName);
 
                     ///////////////////////////
                     if ((returnCode >= mConfig.getBulkUploadLimit() || returnCode == MPDbAdapter.DB_OUT_OF_MEMORY_ERROR) && mFailedRetries <= 0 && token != null && serviceName != null) {
                         logAboutMessageToMixpanel("Flushing queue due to bulk upload limit (" + returnCode + ") for project " + token);
                         updateFlushFrequency();
-                        sendAllData(mDbAdapter, token, serviceName, isProduction);
+                        sendAllData(mDbAdapter, token, serviceName);
                         /*
                         if (SystemClock.elapsedRealtime() >= mDecideRetryAfter) {
                             try {
-                                mDecideChecker.runDecideCheck(token, serviceName, isProduction, getPoster());
+                                mDecideChecker.runDecideCheck(token, serviceName, getPoster());
                             } catch (RemoteService.ServiceUnavailableException e) {
                                 mDecideRetryAfter = SystemClock.elapsedRealtime() + e.getRetryAfter() * 1000;
                             }
@@ -605,19 +584,19 @@ import javax.net.ssl.SSLSocketFactory;
                 return mTrackEngageRetryAfter;
             }
 
-            private void sendAllData(MPDbAdapter dbAdapter, String token, String serviceName, boolean isProduction) {
+            private void sendAllData(MPDbAdapter dbAdapter, String token, String serviceName) {
                 final RemoteService poster = getPoster();
                 if (!poster.isOnline(mContext, mConfig.getOfflineMode())) {
                     logAboutMessageToMixpanel("Not flushing data to Mixpanel because the device is not connected to the internet.");
                     return;
                 }
 
-                sendData(dbAdapter, token, serviceName, isProduction, MPDbAdapter.Table.EVENTS, mConfig.getEventsEndpoint());
-                sendData(dbAdapter, token, serviceName, isProduction, MPDbAdapter.Table.PEOPLE, mConfig.getPeopleEndpoint());
-                sendData(dbAdapter, token, serviceName, isProduction, MPDbAdapter.Table.GROUPS, mConfig.getGroupsEndpoint());
+                sendData(dbAdapter, token, serviceName, MPDbAdapter.Table.EVENTS, mConfig.getEventsEndpoint(serviceName));
+                /*sendData(dbAdapter, token, serviceName, MPDbAdapter.Table.PEOPLE, mConfig.getPeopleEndpoint());
+                sendData(dbAdapter, token, serviceName, MPDbAdapter.Table.GROUPS, mConfig.getGroupsEndpoint());*/
             }
 
-            private void sendData(MPDbAdapter dbAdapter, String token, String serviceName, boolean isProduction, MPDbAdapter.Table table, String url) {
+            private void sendData(MPDbAdapter dbAdapter, String token, String serviceName, MPDbAdapter.Table table, String url) {
                 final RemoteService poster = getPoster();
                 DecideMessages decideMessages = mDecideChecker.getDecideMessages(token);
                 boolean includeAutomaticEvents = true;
@@ -634,20 +613,11 @@ import javax.net.ssl.SSLSocketFactory;
                     final String lastId = eventsData[0];
                     final String rawMessage = eventsData[1];
 
-                    android.util.Log.d("XXX", "Raw message: $rawMessage");
-
-                    final String encodedData = Base64Coder.encodeString(rawMessage);
-                    final Map<String, Object> params = new HashMap<String, Object>();
-                    params.put("data", encodedData);
-                    if (MPConfig.DEBUG) {
-                        params.put("verbose", "1");
-                    }
-
                     boolean deleteEvents = true;
                     byte[] response;
                     try {
                         final SSLSocketFactory socketFactory = mConfig.getSSLSocketFactory();
-                        response = poster.performRequest(url, params, socketFactory);
+                        response = poster.performRequest(url, token, rawMessage, socketFactory);
                         if (null == response) {
                             deleteEvents = false;
                             logAboutMessageToMixpanel("Response was null, unexpected failure posting to " + url + ".");
@@ -685,14 +655,14 @@ import javax.net.ssl.SSLSocketFactory;
 
                     if (deleteEvents) {
                         logAboutMessageToMixpanel("Not retrying this batch of events, deleting them from DB.");
-                        dbAdapter.cleanupEvents(lastId, table, token, serviceName, isProduction, includeAutomaticEvents);
+                        dbAdapter.cleanupEvents(lastId, table, token, serviceName, includeAutomaticEvents);
                     } else {
                         removeMessages(FLUSH_QUEUE, token);
                         mTrackEngageRetryAfter = Math.max((long)Math.pow(2, mFailedRetries) * 60000, mTrackEngageRetryAfter);
                         mTrackEngageRetryAfter = Math.min(mTrackEngageRetryAfter, 10 * 60 * 1000); // limit 10 min
                         final Message flushMessage = Message.obtain();
                         flushMessage.what = FLUSH_QUEUE;
-                        flushMessage.obj = new FlushQueueObject(token, serviceName, isProduction);
+                        flushMessage.obj = new FlushQueueObject(token, serviceName);
                         sendMessageDelayed(flushMessage, mTrackEngageRetryAfter);
                         mFailedRetries++;
                         logAboutMessageToMixpanel("Retrying this batch of events in " + mTrackEngageRetryAfter + " ms");
@@ -805,6 +775,7 @@ import javax.net.ssl.SSLSocketFactory;
                 final JSONObject eventProperties = eventDescription.getProperties();
                 final JSONObject sendProperties = getDefaultEventProperties();
                 sendProperties.put("token", eventDescription.getToken());
+                sendProperties.put("service_name", eventDescription.getServiceName());
                 if (eventProperties != null) {
                     for (final Iterator<?> iter = eventProperties.keys(); iter.hasNext();) {
                         final String key = (String) iter.next();
@@ -812,7 +783,7 @@ import javax.net.ssl.SSLSocketFactory;
                     }
                 }
                 eventObj.put("event", eventDescription.getEventName());
-                eventObj.put("properties", sendProperties);
+                eventObj.put("prop", sendProperties);
                 eventObj.put("$mp_metadata", eventDescription.getSessionMetadata());
                 return eventObj;
             }

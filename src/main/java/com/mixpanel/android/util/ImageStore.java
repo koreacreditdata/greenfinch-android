@@ -75,7 +75,7 @@ public class ImageStore {
         if (file == null || !file.exists()) {
             try {
                 final SSLSocketFactory factory = mConfig.getSSLSocketFactory();
-                bytes = mPoster.performRequest(url, null, factory);
+                bytes = mPoster.performRequest(url, null, null, factory);
             } catch (IOException e) {
                 throw new CantGetImageException("Can't download bitmap", e);
             } catch (RemoteService.ServiceUnavailableException e) {

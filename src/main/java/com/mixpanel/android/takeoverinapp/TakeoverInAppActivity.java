@@ -60,7 +60,7 @@ public class TakeoverInAppActivity extends Activity {
             finish();
             return;
         }
-        mMixpanel = MixpanelAPI.getInstance(TakeoverInAppActivity.this, mUpdateDisplayState.getToken(), mUpdateDisplayState.getServiceName(), mUpdateDisplayState.isProduction());
+        mMixpanel = MixpanelAPI.getInstance(TakeoverInAppActivity.this, mUpdateDisplayState.getToken(), mUpdateDisplayState.getServiceName());
 
         onCreateInAppNotification();
     }

@@ -207,7 +207,7 @@ public class MPConfig {
         mOfflineMode = offlineMode;
     }
 
-    /* package */ MPConfig(Bundle metaData, Context context) {
+    /* package */ MPConfig(Bundle metaData, Context context, boolean isDebug) {
 
         // By default, we use a clean, FACTORY default SSLSocket. In general this is the right
         // thing to do, and some other third party libraries change the
@@ -281,32 +281,39 @@ public class MPConfig {
         }
         mNotificationChannelName = notificationChannelName;
 
+        String defaultApiEndpoint;
+        if (isDebug) {
+            defaultApiEndpoint = MPConstants.URL.GREENFINCH_ENDPOINT_DEV;
+        } else {
+            defaultApiEndpoint = MPConstants.URL.GREENFINCH_ENDPOINT_PROD;
+        }
+
         String eventsEndpoint = metaData.getString("com.mixpanel.android.MPConfig.EventsEndpoint");
         if (eventsEndpoint != null) {
             setEventsEndpoint(eventsEndpoint);
         } else {
-            setEventsEndpointWithBaseURL(MPConstants.URL.MIXPANEL_API);
+            setEventsEndpointWithBaseURL(defaultApiEndpoint);
         }
 
         String peopleEndpoint = metaData.getString("com.mixpanel.android.MPConfig.PeopleEndpoint");
         if (peopleEndpoint != null) {
             setPeopleEndpoint(peopleEndpoint);
         } else {
-            setPeopleEndpointWithBaseURL(MPConstants.URL.MIXPANEL_API);
+            setPeopleEndpointWithBaseURL(defaultApiEndpoint);
         }
 
         String groupsEndpoint = metaData.getString("com.mixpanel.android.MPConfig.GroupsEndpoint");
         if (groupsEndpoint != null) {
             setGroupsEndpoint(groupsEndpoint);
         } else {
-            setGroupsEndpointWithBaseURL(MPConstants.URL.MIXPANEL_API);
+            setGroupsEndpointWithBaseURL(defaultApiEndpoint);
         }
 
         String decideEndpoint = metaData.getString("com.mixpanel.android.MPConfig.DecideEndpoint");
         if (decideEndpoint != null) {
             setDecideEndpoint(decideEndpoint);
         } else {
-            setDecideEndpointWithBaseURL(MPConstants.URL.MIXPANEL_API);
+            setDecideEndpointWithBaseURL(defaultApiEndpoint);
         }
 
         String editorUrl = metaData.getString("com.mixpanel.android.MPConfig.EditorUrl");
@@ -370,8 +377,8 @@ public class MPConfig {
     }
 
     // Preferred URL for tracking events
-    public String getEventsEndpoint() {
-        return mEventsEndpoint;
+    public String getEventsEndpoint(String serviceName) {
+        return mEventsEndpoint + serviceName;
     }
 
     // In parity with iOS SDK
@@ -383,11 +390,13 @@ public class MPConfig {
     }
 
     private String getEndPointWithIpTrackingParam(String endPoint, boolean ifUseIpAddressForGeolocation) {
+        return endPoint;
+        /*
         if (endPoint.contains("?ip=")) {
             return endPoint.substring(0, endPoint.indexOf("?ip=")) + "?ip=" + (ifUseIpAddressForGeolocation ? "1" : "0");
         } else {
             return endPoint + "?ip=" + (ifUseIpAddressForGeolocation ? "1" : "0");
-        }
+        }*/
     }
 
     private void setEventsEndpointWithBaseURL(String baseURL) {
@@ -487,9 +496,9 @@ public class MPConfig {
         return mUseIpAddressForGeolocation;
     }
 
-    public void setUseIpAddressForGeolocation(boolean useIpAddressForGeolocation) {
+    public void setUseIpAddressForGeolocation(boolean useIpAddressForGeolocation, String serviceName) {
         mUseIpAddressForGeolocation = useIpAddressForGeolocation;
-        setEventsEndpoint(getEndPointWithIpTrackingParam(getEventsEndpoint(), useIpAddressForGeolocation));
+        setEventsEndpoint(getEndPointWithIpTrackingParam(getEventsEndpoint(serviceName), useIpAddressForGeolocation));
         setPeopleEndpoint(getEndPointWithIpTrackingParam(getPeopleEndpoint(), useIpAddressForGeolocation));
     }
 
@@ -540,7 +549,7 @@ public class MPConfig {
             if (null == configBundle) {
                 configBundle = new Bundle();
             }
-            return new MPConfig(configBundle, appContext);
+            return new MPConfig(configBundle, appContext, (appInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0);
         } catch (final NameNotFoundException e) {
             throw new RuntimeException("Can't configure Mixpanel with package name " + packageName, e);
         }
@@ -560,7 +569,7 @@ public class MPConfig {
                 "    DisableEmulatorBindingUI " + getDisableEmulatorBindingUI() + "\n" +
                 "    EnableDebugLogging " + DEBUG + "\n" +
                 "    TestMode " + getTestMode() + "\n" +
-                "    EventsEndpoint " + getEventsEndpoint() + "\n" +
+                "    EventsEndpoint " + getEventsEndpoint("") + "\n" +
                 "    PeopleEndpoint " + getPeopleEndpoint() + "\n" +
                 "    DecideEndpoint " + getDecideEndpoint() + "\n" +
                 "    EditorUrl " + getEditorUrl() + "\n" +

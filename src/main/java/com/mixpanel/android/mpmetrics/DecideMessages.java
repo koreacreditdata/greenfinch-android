@@ -21,11 +21,10 @@ import java.util.Set;
         void onNewResults();
     }
 
-    public DecideMessages(Context context, String token, String serviceName, boolean isProduction, OnNewResultsListener listener, UpdatesFromMixpanel updatesFromMixpanel, HashSet<Integer> notificationIds) {
+    public DecideMessages(Context context, String token, String serviceName, OnNewResultsListener listener, UpdatesFromMixpanel updatesFromMixpanel, HashSet<Integer> notificationIds) {
         mContext = context;
         mToken = token;
         mServiceName = serviceName;
-        mIsProduction = isProduction;
         mListener = listener;
         mUpdatesFromMixpanel = updatesFromMixpanel;
 
@@ -43,10 +42,6 @@ import java.util.Set;
 
     public String getServiceName() {
         return mServiceName;
-    }
-
-    public boolean isProduction() {
-        return mIsProduction;
     }
 
     // Called from other synchronized code. Do not call into other synchronized code or you'll
@@ -133,7 +128,7 @@ import java.util.Set;
         mUpdatesFromMixpanel.storeVariants(mVariants);
 
         if (mAutomaticEventsEnabled == null && !automaticEvents) {
-            MPDbAdapter.getInstance(mContext).cleanupAutomaticEvents(mToken, mServiceName, mIsProduction);
+            MPDbAdapter.getInstance(mContext).cleanupAutomaticEvents(mToken, mServiceName);
         }
         mAutomaticEventsEnabled = automaticEvents;
 
@@ -250,7 +245,6 @@ import java.util.Set;
 
     private final String mToken;
     private final String mServiceName;
-    private final boolean mIsProduction;
     private final Set<Integer> mNotificationIds;
     private final List<InAppNotification> mUnseenNotifications;
     private final List<InAppNotification> mUnseenEventTriggeredNotifications;

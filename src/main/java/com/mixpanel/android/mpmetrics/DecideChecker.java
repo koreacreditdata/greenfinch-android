@@ -76,17 +76,17 @@ import javax.net.ssl.SSLSocketFactory;
     }
 
     public void addDecideCheck(final DecideMessages check) {
-        String key = String.format("%1$s|%2$s|%3$b", check.getToken(), check.getServiceName(), check.isProduction());
+        String key = String.format("%1$s|%2$s", check.getToken(), check.getServiceName());
         mChecks.put(key, check);
     }
 
-    public void runDecideCheck(final String token, final String serviceName, final boolean isProduction, final RemoteService poster) throws RemoteService.ServiceUnavailableException {
-        String key = String.format("%1$s|%2$s|%3$b", token, serviceName, isProduction);
+    public void runDecideCheck(final String token, final String serviceName, final RemoteService poster) throws RemoteService.ServiceUnavailableException {
+        String key = String.format("%1$s|%2$s", token, serviceName);
         DecideMessages updates = mChecks.get(key);
         if (updates != null) {
             final String distinctId = updates.getDistinctId();
             try {
-                final Result result = runDecideCheck(updates.getToken(), updates.getServiceName(), updates.isProduction(), distinctId, poster);
+                final Result result = runDecideCheck(updates.getToken(), updates.getServiceName(), distinctId, poster);
                 if (result != null) {
                     updates.reportResults(result.notifications, result.eventTriggeredNotifications, result.eventBindings, result.variants, result.automaticEvents, result.integrations);
                 }
@@ -118,9 +118,9 @@ import javax.net.ssl.SSLSocketFactory;
         }
     }
 
-    private Result runDecideCheck(final String token, final String serviceName, final boolean isProduction, final String distinctId, final RemoteService poster)
+    private Result runDecideCheck(final String token, final String serviceName, final String distinctId, final RemoteService poster)
         throws RemoteService.ServiceUnavailableException, UnintelligibleMessageException {
-        final String responseString = getDecideResponseFromServer(token, serviceName, isProduction, distinctId, poster);
+        final String responseString = getDecideResponseFromServer(token, serviceName, distinctId, poster);
 
         MPLog.v(LOGTAG, "Mixpanel decide server response was:\n" + responseString);
 
@@ -240,7 +240,7 @@ import javax.net.ssl.SSLSocketFactory;
         return ret;
     }
 
-    private String getDecideResponseFromServer(String unescapedToken, String serviceName, boolean isProduction, String unescapedDistinctId, RemoteService poster)
+    private String getDecideResponseFromServer(String unescapedToken, String serviceName, String unescapedDistinctId, RemoteService poster)
             throws RemoteService.ServiceUnavailableException {
         /*final String escapedToken;
         final String escapedId;
@@ -343,7 +343,7 @@ import javax.net.ssl.SSLSocketFactory;
         byte[] response = null;
         try {
             final SSLSocketFactory socketFactory = config.getSSLSocketFactory();
-            response = poster.performRequest(url, null, socketFactory);
+            response = poster.performRequest(url, null, null, socketFactory);
         } catch (final MalformedURLException e) {
             MPLog.e(LOGTAG, "Cannot interpret " + url + " as a URL.", e);
         } catch (final FileNotFoundException e) {
